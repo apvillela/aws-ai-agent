@@ -1,0 +1,199 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: Projeto Sentinel - Serverless Lead Enrichment & Analytics Pipeline
+
+Globals:
+  Function:
+    Timeout: 30
+    MemorySize: 256
+    Runtime: nodejs20.x
+    Environment:
+      Variables:
+        NODE_ENV: production
+
+Resources:
+
+  # ── DynamoDB ────────────────────────────────────────────────────────────────
+
+  SentinelLeadsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: sentinel-leads
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: lead_id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: lead_id
+          KeyType: HASH
+      StreamSpecification:
+        StreamViewType: NEW_IMAGE
+      Tags:
+        - Key: Project
+          Value: sentinel
+
+  # ── SQS ─────────────────────────────────────────────────────────────────────
+
+  LeadsDLQ:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: sentinel-leads-dlq
+      MessageRetentionPeriod: 1209600  # 14 days
+      Tags:
+        - Key: Project
+          Value: sentinel
+
+  LeadsQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: sentinel-leads-queue
+      VisibilityTimeout: 300
+      MessageRetentionPeriod: 86400  # 1 day
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt LeadsDLQ.Arn
+        maxReceiveCount: 3
+      Tags:
+        - Key: Project
+          Value: sentinel
+
+  # ── Ingest Lambda (TypeScript) ───────────────────────────────────────────────
+
+  IngestFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: sentinel-ingest
+      CodeUri: src/ingest/
+      Handler: handler.handler
+      Runtime: nodejs20.x
+      Description: Validates lead payload and publishes to SQS
+      Environment:
+        Variables:
+          SQS_QUEUE_URL: !Ref LeadsQueue
+      Policies:
+        - SQSSendMessagePolicy:
+            QueueName: !GetAtt LeadsQueue.QueueName
+      Events:
+        PostLeads:
+          Type: Api
+          Properties:
+            Path: /leads
+            Method: post
+            RestApiId: !Ref SentinelApi
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: true
+        Target: es2020
+        Sourcemap: true
+        EntryPoints:
+          - handler.ts
+
+  # ── AI Enrichment Lambda (Python) ────────────────────────────────────────────
+
+  AIEnrichmentFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: sentinel-ai-enrichment
+      CodeUri: src/ai/
+      Handler: lambda_handler.handler
+      Runtime: python3.11
+      Timeout: 300
+      MemorySize: 512
+      Description: LangChain ReAct agent - enriches lead with RAG + scoring
+      Environment:
+        Variables:
+          DYNAMODB_TABLE_NAME: !Ref SentinelLeadsTable
+          PINECONE_API_KEY_PARAM: /sentinel/pinecone_api_key
+          PINECONE_INDEX_NAME: sentinel-profiles
+          GEMINI_API_KEY_PARAM: /sentinel/gemini_api_key
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref SentinelLeadsTable
+        - SQSPollerPolicy:
+            QueueName: !GetAtt LeadsQueue.QueueName
+        - SSMParameterReadPolicy:
+            ParameterName: sentinel/pinecone_api_key
+        - SSMParameterReadPolicy:
+            ParameterName: sentinel/gemini_api_key
+      Events:
+        SQSTrigger:
+          Type: SQS
+          Properties:
+            Queue: !GetAtt LeadsQueue.Arn
+            BatchSize: 1
+            FunctionResponseTypes:
+              - ReportBatchItemFailures
+
+  # ── Stream Processor Lambda (Python) ─────────────────────────────────────────
+
+  StreamProcessorFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: sentinel-stream-processor
+      CodeUri: src/pipeline/
+      Handler: stream_handler.handler
+      Runtime: python3.11
+      Timeout: 60
+      Description: DynamoDB Stream to BigQuery pipeline
+      Environment:
+        Variables:
+          GCP_PROJECT_ID: '{{resolve:ssm:/sentinel/gcp_project_id}}'
+          BIGQUERY_DATASET: sentinel
+          BIGQUERY_TABLE: leads
+          GCP_SERVICE_ACCOUNT_KEY_PARAM: /sentinel/gcp_service_account_key
+      Policies:
+        - DynamoDBStreamReadPolicy:
+            TableName: !Ref SentinelLeadsTable
+            StreamName: !Select [3, !Split ['/', !GetAtt SentinelLeadsTable.StreamArn]]
+        - SSMParameterReadPolicy:
+            ParameterName: sentinel/gcp_service_account_key
+        - SQSSendMessagePolicy:
+            QueueName: !GetAtt LeadsDLQ.QueueName
+      Events:
+        DynamoDBStream:
+          Type: DynamoDB
+          Properties:
+            Stream: !GetAtt SentinelLeadsTable.StreamArn
+            StartingPosition: LATEST
+            BatchSize: 10
+            BisectBatchOnFunctionError: true
+            DestinationConfig:
+              OnFailure:
+                Destination: !GetAtt LeadsDLQ.Arn
+
+  # ── API Gateway ───────────────────────────────────────────────────────────────
+
+  SentinelApi:
+    Type: AWS::Serverless::Api
+    Properties:
+      Name: sentinel-api
+      StageName: prod
+      Cors:
+        AllowMethods: "'POST,OPTIONS'"
+        AllowHeaders: "'Content-Type'"
+        AllowOrigin: "'*'"
+
+Outputs:
+  ApiEndpoint:
+    Description: API Gateway endpoint URL
+    Value: !Sub 'https://${SentinelApi}.execute-api.${AWS::Region}.amazonaws.com/prod'
+    Export:
+      Name: SentinelApiEndpoint
+
+  LeadsQueueUrl:
+    Description: SQS queue URL
+    Value: !Ref LeadsQueue
+    Export:
+      Name: SentinelLeadsQueueUrl
+
+  DynamoDBTableName:
+    Description: DynamoDB table name
+    Value: !Ref SentinelLeadsTable
+    Export:
+      Name: SentinelDynamoDBTable
+
+  DynamoDBStreamArn:
+    Description: DynamoDB Stream ARN
+    Value: !GetAtt SentinelLeadsTable.StreamArn
+    Export:
+      Name: SentinelDynamoDBStreamArn

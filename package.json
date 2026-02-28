@@ -1,0 +1,16 @@
+{
+  "name": "sentinel",
+  "version": "1.0.0",
+  "description": "Projeto Sentinel - Serverless Lead Enrichment & Analytics",
+  "private": true,
+  "workspaces": [
+    "src/ingest"
+  ],
+  "scripts": {
+    "build": "sam build",
+    "deploy": "sam deploy",
+    "local": "sam local start-api --env-vars env.local.json",
+    "logs:ingest": "sam logs -n sentinel-ingest --tail",
+    "logs:ai": "sam logs -n sentinel-ai-enrichment --tail"
+  }
+}
