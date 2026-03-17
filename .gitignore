@@ -10,11 +10,9 @@ dist/
 
 # Secrets — NEVER commit these
 .env
+env.local.json
 *-key.json
 gcp-key.json
-
-# SAM build cache
-.aws-sam/
 
 # OS
 .DS_Store

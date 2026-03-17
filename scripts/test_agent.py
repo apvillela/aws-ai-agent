@@ -70,7 +70,7 @@ TEST_LEADS = [
 SEPARATOR = "=" * 60
 
 
-def run_tests(verbose: bool = True) -> None:
+def run_tests(verbose: bool = True) -> bool:
     print(f"\n{SEPARATOR}")
     print("  Sentinel Agent Test — 3 Reference Leads")
     print(SEPARATOR)

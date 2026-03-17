@@ -7,6 +7,7 @@ SQS event → parse lead → agent.enrich_lead() → DynamoDB.put_item()
 import json
 import os
 from datetime import datetime, timezone
+from decimal import Decimal
 from typing import Any
 
 import boto3
@@ -68,19 +69,20 @@ def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
 
     for record in event.get("Records", []):
         message_id = record.get("messageId", "unknown")
+        lead_id = "unknown"
         try:
-            _process_record(record)
+            body = json.loads(record.get("body", "{}"))
+            lead_id = body.get("lead_id", "unknown")
+            _process_record(record, body)
         except Exception as exc:
-            print(f"ERROR processing message {message_id}: {exc}")
+            print(f"ERROR processing message {message_id} (lead {lead_id}): {exc}")
             batch_item_failures.append({"itemIdentifier": message_id})
 
     return {"batchItemFailures": batch_item_failures}
 
 
-def _process_record(record: dict[str, Any]) -> None:
+def _process_record(record: dict[str, Any], body: dict[str, Any]) -> None:
     """Parse a single SQS record, enrich the lead, persist to DynamoDB."""
-    body = json.loads(record["body"])
-
     lead_id = body["lead_id"]
     print(f"Processing lead {lead_id} — {body.get('company_name', 'unknown')}")
 
@@ -95,10 +97,10 @@ def _process_record(record: dict[str, Any]) -> None:
         "company_size":       body.get("company_size"),
         "budget_signal":      body.get("budget_signal"),
         "contact_email":      body.get("contact_email"),
-        "score":              str(enrichment.get("score", 0)),  # DynamoDB Decimal
+        "score":              Decimal(str(enrichment.get("score", 0))),
         "tier":               enrichment.get("tier", "COLD"),
         "summary":            enrichment.get("summary", ""),
-        "rag_similarity":     str(enrichment.get("rag_similarity", 0)),
+        "rag_similarity":     Decimal(str(enrichment.get("rag_similarity", 0))),
         "rag_context_snippet": enrichment.get("rag_context_snippet", ""),
         "processed_at":       datetime.now(timezone.utc).isoformat(),
         "status":             "enriched",

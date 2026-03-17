@@ -268,10 +268,24 @@ def enrich_lead(lead: dict[str, Any], verbose: bool = False) -> dict[str, Any]:
     # Extract JSON from Final Answer — handle markdown fences
     json_str = re.sub(r"```(?:json)?|```", "", output).strip()
 
-    # Find the first {...} block
-    match = re.search(r"\{.*\}", json_str, re.DOTALL)
-    if not match:
-        raise ValueError(f"Agent did not return valid JSON.\nRaw output:\n{output}")
+    # Try direct parse first (cleanest case)
+    try:
+        parsed = json.loads(json_str)
+        if isinstance(parsed, dict):
+            return parsed
+    except json.JSONDecodeError:
+        pass
 
-    parsed = json.loads(match.group(0))
-    return parsed
+    # Fallback: find JSON object using raw_decode from last { backwards
+    # This handles preamble text like "Here is the result:" before the JSON
+    decoder = json.JSONDecoder()
+    brace_positions = [i for i, c in enumerate(json_str) if c == "{"]
+    for pos in reversed(brace_positions):
+        try:
+            obj, _ = decoder.raw_decode(json_str, pos)
+            if isinstance(obj, dict):
+                return obj
+        except json.JSONDecodeError:
+            continue
+
+    raise ValueError(f"Agent did not return valid JSON.\nRaw output:\n{output}")

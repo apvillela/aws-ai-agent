@@ -8,7 +8,7 @@ Usage:
 
 The script:
 1. Creates (or reuses) a Pinecone serverless index named 'sentinel-profiles'
-2. Embeds each profile document using Google text-embedding-004 (dim=768)
+2. Embeds each profile document using gemini-embedding-001 (dim=1024)
 3. Upserts all vectors with metadata
 4. Verifies the index stats after upsert
 """
@@ -300,7 +300,7 @@ PROFILES = [
 # ── Embedding helper ──────────────────────────────────────────────────────────
 
 def embed_texts(texts: list[str]) -> list[list[float]]:
-    """Embed a list of texts using Google text-embedding-004 (dim=768)."""
+    """Embed a list of texts using gemini-embedding-001 (dim=1024)."""
     client = genai.Client(api_key=GEMINI_API_KEY)
     embeddings = []
     for i, text in enumerate(texts):
