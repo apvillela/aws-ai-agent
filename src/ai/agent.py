@@ -110,6 +110,11 @@ def _calculate_score(
     top_category: str = "unknown",
 ) -> dict[str, Any]:
     """Deterministic scoring function — never call the LLM for this."""
+    # Clamp inputs to valid ranges (defense against LLM passing garbage values)
+    rag_similarity = max(0.0, min(rag_similarity, 1.0))
+    sector_match   = max(0.0, min(sector_match, 1.0))
+    company_size   = max(0, company_size)
+
     base         = rag_similarity * 40           # 0–40 pts: profile similarity
     size_score   = min(company_size / 10, 20)    # 0–20 pts: company size (capped at 200)
     # Red-flag matches indicate the lead resembles a bad profile — no sector credit.
@@ -264,13 +269,60 @@ def enrich_lead(lead: dict[str, Any], verbose: bool = False) -> dict[str, Any]:
     executor = build_agent(verbose=verbose)
     result   = executor.invoke({"input": query})
     output   = result.get("output", "")
+    steps    = result.get("intermediate_steps", [])
+
+    # Verify both tools were called (defense against prompt injection)
+    tools_called = {step[0].tool for step in steps}
+    if not {"rag_tool", "calculator_tool"}.issubset(tools_called):
+        raise ValueError(
+            f"Agent skipped required tools. Called: {tools_called}. "
+            f"Both rag_tool and calculator_tool are required."
+        )
+
+    # Extract the last successful calculator_tool result for score verification
+    calc_output = None
+    for step in reversed(steps):
+        if step[0].tool == "calculator_tool" and not step[1].startswith("ERROR"):
+            try:
+                calc_output = json.loads(step[1])
+            except json.JSONDecodeError:
+                pass
+            break
+
+    if calc_output is None:
+        raise ValueError("calculator_tool did not produce a valid score")
 
     # Extract JSON from Final Answer — handle markdown fences
     json_str = re.sub(r"```(?:json)?|```", "", output).strip()
 
+    parsed = _extract_json(json_str)
+    if parsed is None:
+        raise ValueError(f"Agent did not return valid JSON.\nRaw output:\n{output}")
+
+    # Cross-validate: final score must match calculator_tool output.
+    # If the LLM fabricated a different score, trust the calculator.
+    expected_score = calc_output.get("score")
+    actual_score   = parsed.get("score")
+    if (
+        isinstance(expected_score, (int, float))
+        and isinstance(actual_score, (int, float))
+        and abs(expected_score - actual_score) > 0.1
+    ):
+        print(
+            f"WARN: Score mismatch — calculator={expected_score}, "
+            f"agent_output={actual_score}. Using calculator score."
+        )
+        parsed["score"] = expected_score
+        parsed["tier"]  = calc_output.get("tier", parsed.get("tier"))
+
+    return parsed
+
+
+def _extract_json(text: str) -> dict | None:
+    """Extract a JSON object from text. Tries direct parse, then scans for braces."""
     # Try direct parse first (cleanest case)
     try:
-        parsed = json.loads(json_str)
+        parsed = json.loads(text)
         if isinstance(parsed, dict):
             return parsed
     except json.JSONDecodeError:
@@ -279,13 +331,13 @@ def enrich_lead(lead: dict[str, Any], verbose: bool = False) -> dict[str, Any]:
     # Fallback: find JSON object using raw_decode from last { backwards
     # This handles preamble text like "Here is the result:" before the JSON
     decoder = json.JSONDecoder()
-    brace_positions = [i for i, c in enumerate(json_str) if c == "{"]
+    brace_positions = [i for i, c in enumerate(text) if c == "{"]
     for pos in reversed(brace_positions):
         try:
-            obj, _ = decoder.raw_decode(json_str, pos)
+            obj, _ = decoder.raw_decode(text, pos)
             if isinstance(obj, dict):
                 return obj
         except json.JSONDecodeError:
             continue
 
-    raise ValueError(f"Agent did not return valid JSON.\nRaw output:\n{output}")
+    return None

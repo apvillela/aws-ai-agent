@@ -108,6 +108,7 @@ def _build_bq_row(item: dict) -> dict:
         "score":         float(score) if score is not None else None,
         "tier":          item.get("tier"),
         "rag_similarity": float(rag) if rag is not None else None,
+        "received_at":   item.get("received_at"),
         "processed_at":  item.get("processed_at"),
     }
 
@@ -150,6 +151,7 @@ def handler(event: dict[str, Any], context: Any) -> None:
         write_disposition=WriteDisposition.WRITE_APPEND,
         source_format=bigquery.SourceFormat.NEWLINE_DELIMITED_JSON,
         autodetect=False,
+        ignore_unknown_values=True,
     )
     load_job = client.load_table_from_json(rows_to_insert, TABLE_REF, job_config=job_config)
     load_job.result()  # Wait for job to complete (raises on error)

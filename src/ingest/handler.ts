@@ -132,11 +132,11 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
     console.log(JSON.stringify({ requestId, lead_id, action: 'queued' }));
 
     return {
-      statusCode: 200,
+      statusCode: 202,
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         lead_id,
-        message: 'Lead received and queued for enrichment',
+        message: 'Lead accepted and queued for enrichment',
       }),
     };
   } catch (error) {

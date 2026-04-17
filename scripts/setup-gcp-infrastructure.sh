@@ -10,7 +10,7 @@ GCLOUD_BIN="/tmp/google-cloud-sdk/bin"
 export PATH="$GCLOUD_BIN:$PATH"
 WORKSPACE_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 KEY_FILE="$WORKSPACE_DIR/sentinel-bq-key.json"
-SAM_BIN="/home/alexandre/.pyenv/versions/3.12.7/bin/sam"
+SAM_BIN="$(command -v sam || echo sam)"
 
 # ── Config ─────────────────────────────────────────────────────────────────────
 PROJECT_NAME="sentinel-pipeline"
@@ -80,6 +80,7 @@ cat > "$SCHEMA_FILE" <<'EOF'
   {"name":"score",         "type":"FLOAT",     "mode":"NULLABLE"},
   {"name":"tier",          "type":"STRING",    "mode":"NULLABLE"},
   {"name":"rag_similarity","type":"FLOAT",     "mode":"NULLABLE"},
+  {"name":"received_at",   "type":"TIMESTAMP", "mode":"NULLABLE"},
   {"name":"processed_at",  "type":"TIMESTAMP", "mode":"REQUIRED"}
 ]
 EOF

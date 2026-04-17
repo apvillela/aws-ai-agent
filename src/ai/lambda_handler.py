@@ -73,7 +73,7 @@ def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
         try:
             body = json.loads(record.get("body", "{}"))
             lead_id = body.get("lead_id", "unknown")
-            _process_record(record, body)
+            _process_record(body)
         except Exception as exc:
             print(f"ERROR processing message {message_id} (lead {lead_id}): {exc}")
             batch_item_failures.append({"itemIdentifier": message_id})
@@ -81,8 +81,8 @@ def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
     return {"batchItemFailures": batch_item_failures}
 
 
-def _process_record(record: dict[str, Any], body: dict[str, Any]) -> None:
-    """Parse a single SQS record, enrich the lead, persist to DynamoDB."""
+def _process_record(body: dict[str, Any]) -> None:
+    """Enrich a single lead and persist to DynamoDB."""
     lead_id = body["lead_id"]
     print(f"Processing lead {lead_id} — {body.get('company_name', 'unknown')}")
 
@@ -97,6 +97,7 @@ def _process_record(record: dict[str, Any], body: dict[str, Any]) -> None:
         "company_size":       body.get("company_size"),
         "budget_signal":      body.get("budget_signal"),
         "contact_email":      body.get("contact_email"),
+        "received_at":        body.get("received_at"),
         "score":              Decimal(str(enrichment.get("score", 0))),
         "tier":               enrichment.get("tier", "COLD"),
         "summary":            enrichment.get("summary", ""),

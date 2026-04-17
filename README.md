@@ -59,8 +59,8 @@ POST /leads → API Gateway → Ingest Lambda (TypeScript)
 ### 1. Clone and install
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/sentinel.git
-cd sentinel
+git clone https://github.com/apvillela/aws-ai-agent.git
+cd aws-ai-agent
 npm install --prefix src/ingest
 ```
 
