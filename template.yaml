@@ -79,6 +79,8 @@ Resources:
             Path: /leads
             Method: post
             RestApiId: !Ref SentinelApi
+            Auth:
+              ApiKeyRequired: true
     Metadata:
       BuildMethod: esbuild
       BuildProperties:
@@ -168,10 +170,52 @@ Resources:
     Properties:
       Name: sentinel-api
       StageName: prod
+      Auth:
+        ApiKeyRequired: true
       Cors:
         AllowMethods: "'POST,OPTIONS'"
         AllowHeaders: "'Content-Type'"
         AllowOrigin: "'*'"
+
+  SentinelDemoApiKey:
+    Type: AWS::ApiGateway::ApiKey
+    DependsOn: SentinelApiprodStage
+    Properties:
+      Name: sentinel-demo-api-key
+      Description: API key required for the Sentinel public demo endpoint
+      Enabled: true
+      StageKeys:
+        - RestApiId: !Ref SentinelApi
+          StageName: prod
+      Tags:
+        - Key: Project
+          Value: sentinel
+
+  SentinelDemoUsagePlan:
+    Type: AWS::ApiGateway::UsagePlan
+    DependsOn: SentinelApiprodStage
+    Properties:
+      UsagePlanName: sentinel-demo-usage-plan
+      Description: Low-limit usage plan for the Sentinel public demo endpoint
+      ApiStages:
+        - ApiId: !Ref SentinelApi
+          Stage: prod
+      Quota:
+        Limit: 100
+        Period: DAY
+      Throttle:
+        BurstLimit: 3
+        RateLimit: 1
+      Tags:
+        - Key: Project
+          Value: sentinel
+
+  SentinelDemoUsagePlanKey:
+    Type: AWS::ApiGateway::UsagePlanKey
+    Properties:
+      KeyId: !Ref SentinelDemoApiKey
+      KeyType: API_KEY
+      UsagePlanId: !Ref SentinelDemoUsagePlan
 
 Outputs:
   ApiEndpoint:
@@ -197,3 +241,9 @@ Outputs:
     Value: !GetAtt SentinelLeadsTable.StreamArn
     Export:
       Name: SentinelDynamoDBStreamArn
+
+  DemoApiKeyId:
+    Description: API Gateway key ID for the protected demo endpoint
+    Value: !Ref SentinelDemoApiKey
+    Export:
+      Name: SentinelDemoApiKeyId
