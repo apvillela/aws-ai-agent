@@ -14,7 +14,7 @@ if ! aws iam get-open-id-connect-provider \
   aws iam create-open-id-connect-provider \
     --url https://token.actions.githubusercontent.com \
     --client-id-list sts.amazonaws.com \
-    --thumbprint-list 6938fd4d98bab03faadb97b34396831e3780aea 1c58a3a8518e8759bf075b76b750d4f2df264fcd3 \
+    --thumbprint-list 2d74d6dfd96eea55ad7baafa0d3c6552b2dadc37 ab9d0263244dd0326eb67015705a667e79cfe998 \
     --tags Key=Project,Value=sentinel
 else
   echo "    already exists, skipping"
