@@ -31,6 +31,9 @@ jobs:
       - name: Install SAM CLI
         uses: aws-actions/setup-sam@v2
 
+      - name: Install esbuild
+        run: npm install -g esbuild@0.25.0
+
       - name: Configure AWS credentials via OIDC
         uses: aws-actions/configure-aws-credentials@v4
         with:
