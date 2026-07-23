@@ -5,7 +5,10 @@
       "Sid": "CloudFormation",
       "Effect": "Allow",
       "Action": "cloudformation:*",
-      "Resource": "arn:aws:cloudformation:us-east-1:002259667831:stack/sentinel/*"
+      "Resource": [
+        "arn:aws:cloudformation:us-east-1:002259667831:stack/sentinel/*",
+        "arn:aws:cloudformation:us-east-1:002259667831:stack/aws-sam-cli-managed-default/*"
+      ]
     },
     {
       "Sid": "CloudFormationChangeSetDescribe",
