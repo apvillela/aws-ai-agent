@@ -1,0 +1,57 @@
+name: Deploy Sentinel
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      run_integration_tests:
+        description: "Run RAG/agent tests against live Pinecone + Gemini"
+        type: boolean
+        default: false
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install SAM CLI
+        uses: aws-actions/setup-sam@v2
+
+      - name: Configure AWS credentials via OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::002259667831:role/sentinel-github-actions-deploy
+          aws-region: us-east-1
+
+      - name: SAM build
+        run: sam build
+
+      - name: SAM validate
+        run: sam validate --lint
+
+      - name: Run integration tests
+        if: github.event_name == 'workflow_dispatch' && inputs.run_integration_tests
+        env:
+          PINECONE_API_KEY: ${{ secrets.PINECONE_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: |
+          pip install -r src/ai/requirements.txt
+          python scripts/test_rag.py
+          python scripts/test_agent.py
+
+      - name: SAM deploy
+        run: sam deploy --no-confirm-changeset --no-fail-on-empty-changeset

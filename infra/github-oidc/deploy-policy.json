@@ -1,0 +1,78 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "CloudFormation",
+      "Effect": "Allow",
+      "Action": "cloudformation:*",
+      "Resource": "arn:aws:cloudformation:us-east-1:002259667831:stack/sentinel/*"
+    },
+    {
+      "Sid": "CloudFormationChangeSetDescribe",
+      "Effect": "Allow",
+      "Action": ["cloudformation:DescribeStackEvents", "cloudformation:GetTemplateSummary"],
+      "Resource": "*"
+    },
+    {
+      "Sid": "SamArtifactsBucket",
+      "Effect": "Allow",
+      "Action": ["s3:GetObject", "s3:PutObject", "s3:ListBucket"],
+      "Resource": [
+        "arn:aws:s3:::aws-sam-cli-managed-default-samclisourcebucket-cixnprjjrkai",
+        "arn:aws:s3:::aws-sam-cli-managed-default-samclisourcebucket-cixnprjjrkai/*"
+      ]
+    },
+    {
+      "Sid": "IamForFunctionRoles",
+      "Effect": "Allow",
+      "Action": [
+        "iam:GetRole", "iam:CreateRole", "iam:DeleteRole", "iam:TagRole",
+        "iam:PutRolePolicy", "iam:DeleteRolePolicy", "iam:GetRolePolicy",
+        "iam:AttachRolePolicy", "iam:DetachRolePolicy", "iam:PassRole"
+      ],
+      "Resource": "arn:aws:iam::002259667831:role/sentinel-*"
+    },
+    {
+      "Sid": "LambdaFunctions",
+      "Effect": "Allow",
+      "Action": "lambda:*",
+      "Resource": "arn:aws:lambda:us-east-1:002259667831:function:sentinel-*"
+    },
+    {
+      "Sid": "ApiGateway",
+      "Effect": "Allow",
+      "Action": "apigateway:*",
+      "Resource": "arn:aws:apigateway:us-east-1::*"
+    },
+    {
+      "Sid": "SqsQueues",
+      "Effect": "Allow",
+      "Action": "sqs:*",
+      "Resource": [
+        "arn:aws:sqs:us-east-1:002259667831:sentinel-leads-queue",
+        "arn:aws:sqs:us-east-1:002259667831:sentinel-leads-dlq"
+      ]
+    },
+    {
+      "Sid": "DynamoTable",
+      "Effect": "Allow",
+      "Action": "dynamodb:*",
+      "Resource": [
+        "arn:aws:dynamodb:us-east-1:002259667831:table/sentinel-leads",
+        "arn:aws:dynamodb:us-east-1:002259667831:table/sentinel-leads/stream/*"
+      ]
+    },
+    {
+      "Sid": "SsmReadOnly",
+      "Effect": "Allow",
+      "Action": ["ssm:GetParameter", "ssm:GetParameters"],
+      "Resource": "arn:aws:ssm:us-east-1:002259667831:parameter/sentinel/*"
+    },
+    {
+      "Sid": "Logs",
+      "Effect": "Allow",
+      "Action": "logs:*",
+      "Resource": "arn:aws:logs:us-east-1:002259667831:log-group:/aws/lambda/sentinel-*"
+    }
+  ]
+}
