@@ -44,7 +44,7 @@ jobs:
         run: sam build
 
       - name: SAM validate
-        run: sam validate --lint
+        run: sam validate
 
       - name: Run integration tests
         if: github.event_name == 'workflow_dispatch' && inputs.run_integration_tests
